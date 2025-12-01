@@ -7,7 +7,11 @@ import {
   createMessage,
 } from "@/lib/chatUtils";
 
-const WELCOME_MESSAGE = "Hola! Soy el asistente de Criemos. En que puedo ayudarte?";
+const WELCOME_MESSAGE = "Hola! Soy el asistente de Criemos. ¿En qué puedo ayudarte?";
+
+// 👉 leemos la URL del webhook de n8n desde las env de Vite
+const N8N_WEBHOOK_URL =
+  import.meta.env.VITE_N8N_WEBHOOK_URL || "http://localhost:5678/webhook/criemos-chatbot";
 
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -38,7 +42,11 @@ export function useChat() {
       setIsTyping(true);
 
       try {
-        const response = await fetch("/api/chat", {
+        if (!N8N_WEBHOOK_URL) {
+          throw new Error("Falta VITE_N8N_WEBHOOK_URL en el .env");
+        }
+
+        const response = await fetch(N8N_WEBHOOK_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -53,15 +61,19 @@ export function useChat() {
         }
 
         const data = await response.json();
+
         const botMessage = createMessage(
-          data.text || "Lo siento, no pude procesar tu mensaje. Por favor intenta de nuevo.",
+          // asumimos que tu workflow devuelve { "text": "respuesta..." }
+          data.text ||
+            "Lo siento, no pude procesar tu mensaje. Por favor intenta de nuevo.",
           "bot"
         );
-        
+
         const updatedMessages = [...newMessages, botMessage];
         setMessages(updatedMessages);
         saveMessages(updatedMessages);
-        
+
+        // si tu workflow devuelve quickReplies, las mostramos
         if (data.quickReplies && data.quickReplies.length > 0) {
           setShowQuickReplies(true);
         }
